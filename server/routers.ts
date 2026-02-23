@@ -109,7 +109,7 @@ export const appRouter = router({
       }),
   }),
 
-  // Router settings procedures
+  // Router management procedures
   router: router({
     // Get router settings
     settings: protectedProcedure.query(async ({ ctx }) => {
@@ -145,6 +145,137 @@ export const appRouter = router({
             ...input,
             scanInterval: input.scanInterval || 300,
           });
+        }
+      }),
+
+    // Scan router for connected devices
+    scan: protectedProcedure
+      .input(
+        z.object({
+          routerType: z.enum(["huawei", "rain101"]),
+          routerIp: z.string(),
+          username: z.string(),
+          password: z.string(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        try {
+          const routerManager = await import("./services/routerManager");
+          const result = await routerManager.scanRouter({
+            type: input.routerType,
+            ip: input.routerIp,
+            username: input.username,
+            password: input.password,
+          });
+
+          if (result.success) {
+            // Store discovered devices in database
+            for (const device of result.devices) {
+              const existingDevice = await getDeviceByMac(device.mac);
+              if (existingDevice) {
+                await updateDevice(existingDevice.id, {
+                  isOnline: device.isOnline ? 1 : 0,
+                  lastSeen: new Date(),
+                });
+              } else {
+                await createDevice({
+                  userId: ctx.user.id,
+                  ipAddress: device.ip,
+                  macAddress: device.mac,
+                  vendor: device.vendor,
+                  deviceType: device.deviceType,
+                  deviceName: device.hostname || device.deviceType || "Unknown Device",
+                  isOnline: device.isOnline ? 1 : 0,
+                  isBlocked: 0,
+                  riskScore: 30,
+                  riskLevel: "low",
+                  lastSeen: new Date(),
+                  firstSeen: new Date(),
+                });
+              }
+            }
+          }
+
+          return result;
+        } catch (error) {
+          console.error("Router scan error:", error);
+          throw new Error("Failed to scan router");
+        }
+      }),
+
+    // Block device on router
+    blockDevice: protectedProcedure
+      .input(
+        z.object({
+          routerType: z.enum(["huawei", "rain101"]),
+          routerIp: z.string(),
+          username: z.string(),
+          password: z.string(),
+          mac: z.string(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        try {
+          const routerManager = await import("./services/routerManager");
+          const success = await routerManager.blockDeviceOnRouter(
+            {
+              type: input.routerType,
+              ip: input.routerIp,
+              username: input.username,
+              password: input.password,
+            },
+            input.mac
+          );
+
+          if (success) {
+            const device = await getDeviceByMac(input.mac);
+            if (device) {
+              await updateDevice(device.id, { isBlocked: 1 });
+            }
+          }
+
+          return { success };
+        } catch (error) {
+          console.error("Block device error:", error);
+          throw new Error("Failed to block device");
+        }
+      }),
+
+    // Unblock device on router
+    unblockDevice: protectedProcedure
+      .input(
+        z.object({
+          routerType: z.enum(["huawei", "rain101"]),
+          routerIp: z.string(),
+          username: z.string(),
+          password: z.string(),
+          mac: z.string(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        try {
+          const routerManager = await import("./services/routerManager");
+          const success = await routerManager.unblockDeviceOnRouter(
+            {
+              type: input.routerType,
+              ip: input.routerIp,
+              username: input.username,
+              password: input.password,
+            },
+            input.mac
+          );
+
+          if (success) {
+            const device = await getDeviceByMac(input.mac);
+            if (device) {
+              await updateDevice(device.id, { isBlocked: 0 });
+            }
+          }
+
+          return { success };
+        } catch (error) {
+          console.error("Unblock device error:", error);
+          throw new Error("Failed to unblock device");
         }
       }),
   }),
