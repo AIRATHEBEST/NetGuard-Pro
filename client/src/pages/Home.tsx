@@ -1,13 +1,13 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getLoginUrl } from "@/const";
+// import { getLoginUrl } from "@/const";
 import { Shield, Wifi, AlertCircle, BarChart3, Lock, Zap, ArrowRight } from "lucide-react";
 import { useLocation } from "wouter";
 import { useEffect } from "react";
 
 export default function Home() {
-  const { user, isAuthenticated, loading } = useAuth();
+  const { user, isAuthenticated, loading, loginWithGoogle } = useAuth();
   const [, navigate] = useLocation();
 
   // Redirect to dashboard if already authenticated
@@ -44,8 +44,8 @@ export default function Home() {
               Go to Dashboard
             </Button>
           ) : (
-            <Button onClick={() => window.location.href = getLoginUrl()}>
-              Sign In
+            <Button onClick={() => loginWithGoogle()}>
+              Sign In with Google
             </Button>
           )}
         </div>
@@ -61,7 +61,7 @@ export default function Home() {
             Monitor all devices on your network, detect threats in real-time, and protect your digital infrastructure with intelligent security analysis.
           </p>
           <Button
-            onClick={() => window.location.href = getLoginUrl()}
+            onClick={() => loginWithGoogle()}
             size="lg"
             className="h-12 px-8 text-lg"
           >
@@ -179,7 +179,7 @@ export default function Home() {
             Start monitoring your network with NetGuard Pro. Free to get started, no credit card required.
           </p>
           <Button
-            onClick={() => window.location.href = getLoginUrl()}
+            onClick={() => loginWithGoogle()}
             size="lg"
             className="h-12 px-8 text-lg bg-white text-blue-600 hover:bg-blue-50"
           >

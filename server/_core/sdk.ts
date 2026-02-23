@@ -7,6 +7,7 @@ import { SignJWT, jwtVerify } from "jose";
 import type { User } from "../../drizzle/schema";
 import * as db from "../db";
 import { ENV } from "./env";
+import { getSupabaseClient } from "../services/supabaseClient";
 import type {
   ExchangeTokenRequest,
   ExchangeTokenResponse,
@@ -257,39 +258,54 @@ class SDKServer {
   }
 
   async authenticateRequest(req: Request): Promise<User> {
-    // Regular authentication flow
+    const supabase = getSupabaseClient();
+    
+    // Get token from Authorization header or cookie
+    const authHeader = req.headers.authorization;
     const cookies = this.parseCookies(req.headers.cookie);
-    const sessionCookie = cookies.get(COOKIE_NAME);
-    const session = await this.verifySession(sessionCookie);
+    
+    // Supabase cookies are usually named sb-<project-id>-auth-token
+    const projectId = ENV.supabaseUrl ? new URL(ENV.supabaseUrl).hostname.split('.')[0] : '';
+    const sbCookieName = `sb-${projectId}-auth-token`;
+    
+    const token = authHeader?.startsWith("Bearer ") 
+      ? authHeader.substring(7) 
+      : cookies.get(sbCookieName) || cookies.get(COOKIE_NAME);
 
-    if (!session) {
-      throw ForbiddenError("Invalid session cookie");
+    if (!token) {
+      throw ForbiddenError("Missing authentication token");
     }
 
-    const sessionUserId = session.openId;
-    const signedInAt = new Date();
-    let user = await db.getUserByOpenId(sessionUserId);
+    // Verify token with Supabase
+    const { data: { user: sbUser }, error } = await supabase.auth.getUser(token);
 
-    // If user not in DB, sync from OAuth server automatically
+    if (error || !sbUser) {
+      console.error("[Auth] Supabase verification failed:", error?.message);
+      throw ForbiddenError("Invalid authentication token");
+    }
+
+    const signedInAt = new Date();
+    let user = await db.getUserByOpenId(sbUser.id);
+
+    // If user not in DB, sync from Supabase automatically
     if (!user) {
       try {
-        const userInfo = await this.getUserInfoWithJwt(sessionCookie ?? "");
         await db.upsertUser({
-          openId: userInfo.openId,
-          name: userInfo.name || null,
-          email: userInfo.email ?? null,
-          loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
+          openId: sbUser.id,
+          name: sbUser.user_metadata?.full_name || sbUser.email?.split('@')[0] || null,
+          email: sbUser.email ?? null,
+          loginMethod: sbUser.app_metadata?.provider || 'supabase',
           lastSignedIn: signedInAt,
         });
-        user = await db.getUserByOpenId(userInfo.openId);
+        user = await db.getUserByOpenId(sbUser.id);
       } catch (error) {
-        console.error("[Auth] Failed to sync user from OAuth:", error);
+        console.error("[Auth] Failed to sync user from Supabase:", error);
         throw ForbiddenError("Failed to sync user info");
       }
     }
 
     if (!user) {
-      throw ForbiddenError("User not found");
+      throw ForbiddenError("User not found after sync");
     }
 
     await db.upsertUser({
