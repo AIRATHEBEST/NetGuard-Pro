@@ -12,7 +12,7 @@ code .
 ### Step 2: Install Dependencies
 Open VS Code terminal (`Ctrl + ~`) and run:
 ```bash
-pnpm install
+npm install
 ```
 
 ### Step 3: Configure Environment
@@ -32,7 +32,7 @@ PORT=3000
 
 ### Step 4: Run the App
 ```bash
-pnpm dev
+npm run dev
 ```
 
 The app will start on `http://localhost:3000`
@@ -97,14 +97,14 @@ Click **Save Settings** and then **Start Scan**.
 lsof -ti:3000 | xargs kill -9
 
 # Or use a different port
-PORT=3001 pnpm dev
+PORT=3001 npm run dev
 ```
 
 ### Supabase Connection Issues?
 1. Verify `.env` file has correct credentials
 2. Check Supabase dashboard for active project
 3. Run SQL migration: `supabase/migrations/001_initial_schema.sql`
-4. Test connection: `pnpm test server/supabase.test.ts`
+4. Test connection: `npm test server/supabase.test.ts`
 
 ### Router Connection Failed?
 1. Ensure router is on the same network

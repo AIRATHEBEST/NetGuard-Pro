@@ -38,7 +38,7 @@ NetGuard-Pro is a comprehensive network management and security monitoring platf
 
 2. **Install dependencies**
    ```bash
-   pnpm install
+   npm install
    ```
 
 3. **Configure environment**
@@ -49,7 +49,7 @@ NetGuard-Pro is a comprehensive network management and security monitoring platf
 
 4. **Start the app**
    ```bash
-   pnpm dev
+   npm run dev
    ```
 
 5. **Open in browser**
@@ -241,17 +241,17 @@ GET /api/trpc/stats.alerts
 
 ### Run All Tests
 ```bash
-pnpm test
+npm test
 ```
 
 ### Run Specific Test
 ```bash
-pnpm test server/supabase.test.ts
+npm test server/supabase.test.ts
 ```
 
 ### Test Coverage
 ```bash
-pnpm test -- --coverage
+npm test -- --coverage
 ```
 
 ---
@@ -272,9 +272,9 @@ vercel --prod
 ### Self-Hosted
 1. Install Node.js 18+
 2. Clone repository
-3. Install dependencies: `pnpm install`
-4. Build: `pnpm build`
-5. Start: `pnpm start`
+3. Install dependencies: `npm install`
+4. Build: `npm run build`
+5. Start: `npm start`
 
 ---
 
@@ -292,7 +292,7 @@ vercel --prod
 - Verify `.env` credentials
 - Check Supabase project status
 - Run SQL migration
-- Test connection: `pnpm test server/supabase.test.ts`
+- Test connection: `npm test server/supabase.test.ts`
 
 ### Issue: "Port 3000 already in use"
 **Solution:**
@@ -301,7 +301,7 @@ vercel --prod
 lsof -ti:3000 | xargs kill -9
 
 # Or use different port
-PORT=3001 pnpm dev
+PORT=3001 npm run dev
 ```
 
 ---
