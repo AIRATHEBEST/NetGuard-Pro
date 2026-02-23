@@ -32,7 +32,7 @@ Device Information:
 - Vendor: ${device.vendor || "Unknown"}
 - Device Type: ${device.deviceType || "Unknown"}
 - Current Risk Score: ${device.riskScore}
-- Online Status: ${device.isOnline === 1 ? "Online" : "Offline"}
+- Online Status: ${device.isOnline ? "Online" : "Offline"}
 - First Seen: ${device.firstSeen}
 - Last Seen: ${device.lastSeen}
 
@@ -147,7 +147,7 @@ export async function generateNetworkRecommendations(
 ): Promise<string[]> {
   try {
     const highRiskDevices = devices.filter((d) => d.riskScore > 70);
-    const blockedDevices = devices.filter((d) => d.isBlocked === 1);
+    const blockedDevices = devices.filter((d) => d.isBlocked === true);
     const recentAlerts = alerts.slice(0, 5);
 
     const prompt = `
@@ -318,7 +318,7 @@ export async function createSecurityAlertFromThreat(
       severity,
       title: `Security Alert: ${device.deviceName || device.ipAddress}`,
       description: analysis.summary,
-      isResolved: 0,
+      isResolved: false,
     });
   } catch (error) {
     console.error("Error creating security alert:", error);

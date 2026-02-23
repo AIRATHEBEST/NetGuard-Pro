@@ -74,7 +74,7 @@ export default function DeviceList({ devices }: DeviceListProps) {
             <div className="flex items-center gap-4 flex-1">
               {/* Device Status Icon */}
               <div className="flex-shrink-0">
-                {device.isOnline === 1 ? (
+                {device.isOnline === true ? (
                   <Wifi className="w-6 h-6 text-green-600" />
                 ) : (
                   <WifiOff className="w-6 h-6 text-slate-400" />
@@ -87,7 +87,7 @@ export default function DeviceList({ devices }: DeviceListProps) {
                   <h3 className="font-semibold text-slate-900 dark:text-white">
                     {device.deviceName || device.ipAddress}
                   </h3>
-                  {device.isBlocked === 1 && (
+                  {device.isBlocked === true && (
                     <Badge variant="destructive" className="text-xs">
                       BLOCKED
                     </Badge>
@@ -127,7 +127,7 @@ export default function DeviceList({ devices }: DeviceListProps) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  {device.isBlocked === 1 ? (
+                  {device.isBlocked === true ? (
                     <DropdownMenuItem onClick={() => handleUnblock(device)}>
                       Unblock Device
                     </DropdownMenuItem>

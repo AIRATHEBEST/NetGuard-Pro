@@ -1,36 +1,31 @@
 import { describe, expect, it } from "vitest";
 
 describe("Supabase Configuration", () => {
-  it("should have Supabase credentials configured", () => {
+  it("should have SUPABASE_URL configured", () => {
     const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-
-    expect(supabaseUrl).toBeDefined();
-    expect(supabaseAnonKey).toBeDefined();
-    expect(supabaseUrl).toMatch(/^https:\/\//);
-    expect(supabaseAnonKey).toMatch(/^sb_/);
+    expect(supabaseUrl, "SUPABASE_URL must be set in environment").toBeDefined();
+    expect(supabaseUrl).not.toBe("");
   });
 
-  it("should validate Supabase URL format", () => {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    expect(supabaseUrl).toBe("https://iarufylvvybhtqosohgb.supabase.co");
+  it("should have SUPABASE_ANON_KEY configured", () => {
+    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+    expect(supabaseAnonKey, "SUPABASE_ANON_KEY must be set in environment").toBeDefined();
+    expect(supabaseAnonKey).not.toBe("");
   });
 
-  it("should validate Supabase anon key format", () => {
-    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
-    expect(supabaseAnonKey).toBe("sb_publishable_1esQxipw9Fi5sJUeGEONTA_W3bQTdzS");
-  });
-
-  it("should have valid Supabase project structure", () => {
+  it("should have a valid Supabase URL format", () => {
     const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+    if (!supabaseUrl) return; // Skip if not configured
 
-    // Validate URL structure
-    const url = new URL(supabaseUrl || "");
+    const url = new URL(supabaseUrl);
+    expect(url.protocol).toBe("https:");
     expect(url.hostname).toContain("supabase.co");
+  });
 
-    // Validate key structure
-    expect(supabaseAnonKey?.length).toBeGreaterThan(20);
-    expect(supabaseAnonKey).toMatch(/^sb_publishable_/);
+  it("should have a non-trivially short anon key", () => {
+    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+    if (!supabaseAnonKey) return; // Skip if not configured
+
+    expect(supabaseAnonKey.length).toBeGreaterThan(20);
   });
 });

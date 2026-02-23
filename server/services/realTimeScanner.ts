@@ -113,8 +113,8 @@ class RealTimeScanner {
                   vendor: device.vendor,
                   deviceType: device.deviceType,
                   deviceName: device.hostname || device.deviceType || "Unknown Device",
-                  isOnline: device.isOnline ? 1 : 0,
-                  isBlocked: 0,
+                  isOnline: !!device.isOnline,
+                  isBlocked: false,
                   riskScore: this.calculateInitialRiskScore(device),
                   riskLevel: this.calculateRiskLevel(device),
                   lastSeen: new Date(),
@@ -129,12 +129,12 @@ class RealTimeScanner {
                 await createDeviceHistory({
                   userId: this.config.userId,
                   deviceId: 0, // Will be set by the database
-                  eventType: "discovered",
+                  eventType: "connected",
                   details: `New device discovered on ${routerConfig.type} router`,
                 });
               } else if (existingDevice.userId === this.config.userId) {
                 // Update existing device
-                const wasOnline = existingDevice.isOnline === 1;
+                const wasOnline = existingDevice.isOnline === true;
                 const isNowOnline = device.isOnline;
 
                 if (wasOnline && !isNowOnline) {
@@ -151,7 +151,7 @@ class RealTimeScanner {
                 }
 
                 await updateDevice(existingDevice.id, {
-                  isOnline: device.isOnline ? 1 : 0,
+                  isOnline: !!device.isOnline,
                   lastSeen: new Date(),
                   ipAddress: device.ip, // Update IP in case it changed
                 });

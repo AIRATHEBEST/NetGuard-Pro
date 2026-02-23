@@ -80,7 +80,7 @@ export const appRouter = router({
         if (!device || device.userId !== ctx.user.id) {
           throw new Error("Device not found or unauthorized");
         }
-        await updateDevice(input.id, { isBlocked: 1 });
+        await updateDevice(input.id, { isBlocked: true });
         await createDeviceHistory({
           deviceId: input.id,
           userId: ctx.user.id,
@@ -98,7 +98,7 @@ export const appRouter = router({
         if (!device || device.userId !== ctx.user.id) {
           throw new Error("Device not found or unauthorized");
         }
-        await updateDevice(input.id, { isBlocked: 0 });
+        await updateDevice(input.id, { isBlocked: false });
         await createDeviceHistory({
           deviceId: input.id,
           userId: ctx.user.id,
@@ -120,7 +120,7 @@ export const appRouter = router({
         routerPasswordEncrypted: "",
         routerModel: "",
         scanInterval: 300,
-        isEnabled: 0,
+        isEnabled: false,
       };
     }),
 
@@ -174,7 +174,7 @@ export const appRouter = router({
               const existingDevice = await getDeviceByMac(device.mac);
               if (existingDevice) {
                 await updateDevice(existingDevice.id, {
-                  isOnline: device.isOnline ? 1 : 0,
+                  isOnline: !!device.isOnline,
                   lastSeen: new Date(),
                 });
               } else {
@@ -185,8 +185,8 @@ export const appRouter = router({
                   vendor: device.vendor,
                   deviceType: device.deviceType,
                   deviceName: device.hostname || device.deviceType || "Unknown Device",
-                  isOnline: device.isOnline ? 1 : 0,
-                  isBlocked: 0,
+                  isOnline: !!device.isOnline,
+                  isBlocked: false,
                   riskScore: 30,
                   riskLevel: "low",
                   lastSeen: new Date(),
@@ -230,7 +230,7 @@ export const appRouter = router({
           if (success) {
             const device = await getDeviceByMac(input.mac);
             if (device) {
-              await updateDevice(device.id, { isBlocked: 1 });
+              await updateDevice(device.id, { isBlocked: true });
             }
           }
 
@@ -268,7 +268,7 @@ export const appRouter = router({
           if (success) {
             const device = await getDeviceByMac(input.mac);
             if (device) {
-              await updateDevice(device.id, { isBlocked: 0 });
+              await updateDevice(device.id, { isBlocked: false });
             }
           }
 
@@ -329,8 +329,8 @@ export const appRouter = router({
     // Get network overview statistics
     overview: protectedProcedure.query(async ({ ctx }) => {
       const allDevices = await getDevicesByUserId(ctx.user.id);
-      const onlineDevices = allDevices.filter(d => d.isOnline === 1);
-      const blockedDevices = allDevices.filter(d => d.isBlocked === 1);
+      const onlineDevices = allDevices.filter(d => d.isOnline === true);
+      const blockedDevices = allDevices.filter(d => d.isBlocked === true);
       const highRiskDevices = allDevices.filter(d => d.riskScore > 70);
 
       return {

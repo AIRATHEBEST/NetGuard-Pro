@@ -1,29 +1,36 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { ENV } from "../_core/env";
 
 /**
- * Initialize Supabase client for database operations
- * Uses environment variables: SUPABASE_URL and SUPABASE_ANON_KEY
+ * Initialize Supabase client for database operations.
+ * Uses environment variables: SUPABASE_URL and SUPABASE_ANON_KEY.
+ *
+ * For server-side operations that need to bypass Row Level Security,
+ * set SUPABASE_SERVICE_ROLE_KEY and pass `useServiceRole: true`.
  */
-export function initializeSupabaseClient() {
+export function initializeSupabaseClient(useServiceRole = false): SupabaseClient {
   const supabaseUrl = ENV.supabaseUrl || process.env.SUPABASE_URL;
-  const supabaseAnonKey = ENV.supabaseAnonKey || process.env.SUPABASE_ANON_KEY;
+  const supabaseKey = useServiceRole
+    ? (ENV.supabaseServiceRoleKey || process.env.SUPABASE_SERVICE_ROLE_KEY)
+    : (ENV.supabaseAnonKey || process.env.SUPABASE_ANON_KEY);
 
-  if (!supabaseUrl || !supabaseAnonKey) {
+  if (!supabaseUrl || !supabaseKey) {
     throw new Error(
-      "Missing Supabase credentials. Set SUPABASE_URL and SUPABASE_ANON_KEY"
+      useServiceRole
+        ? "Missing Supabase credentials. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY"
+        : "Missing Supabase credentials. Set SUPABASE_URL and SUPABASE_ANON_KEY"
     );
   }
 
-  return createClient(supabaseUrl, supabaseAnonKey);
+  return createClient(supabaseUrl, supabaseKey);
 }
 
 /**
- * Get Supabase client instance (singleton pattern)
+ * Singleton Supabase client instance (uses anon key by default).
  */
-let supabaseClient: any = null;
+let supabaseClient: SupabaseClient | null = null;
 
-export function getSupabaseClient() {
+export function getSupabaseClient(): SupabaseClient {
   if (!supabaseClient) {
     supabaseClient = initializeSupabaseClient();
   }
@@ -31,20 +38,16 @@ export function getSupabaseClient() {
 }
 
 /**
- * Test Supabase connection
+ * Test Supabase connection by performing a lightweight query.
  */
 export async function testSupabaseConnection(): Promise<boolean> {
   try {
     const client = getSupabaseClient();
-    if (!client) {
-      console.error("[Supabase] Client not initialized");
-      return false;
-    }
 
-    const { error } = await client.from("users").select("count()", {
-      count: "exact",
-      head: true,
-    } as any);
+    // Use a simple count query — correct Supabase JS v2 syntax
+    const { error } = await client
+      .from("users")
+      .select("*", { count: "exact", head: true });
 
     if (error) {
       console.error("[Supabase] Connection test failed:", error.message);
@@ -60,35 +63,28 @@ export async function testSupabaseConnection(): Promise<boolean> {
 }
 
 /**
- * Get Supabase database statistics
+ * Get Supabase database statistics (row counts per table).
  */
-export async function getSupabaseStats() {
+export async function getSupabaseStats(): Promise<{
+  users: number;
+  devices: number;
+  alerts: number;
+  timestamp: string;
+} | null> {
   try {
     const client = getSupabaseClient();
-    if (!client) {
-      console.error("[Supabase] Client not initialized");
-      return null;
-    }
 
-    // Get user count
-    const { count: userCount } = await client
-      .from("users")
-      .select("*", { count: "exact", head: true } as any);
-
-    // Get device count
-    const { count: deviceCount } = await client
-      .from("devices")
-      .select("*", { count: "exact", head: true } as any);
-
-    // Get alert count
-    const { count: alertCount } = await client
-      .from("alerts")
-      .select("*", { count: "exact", head: true } as any);
+    const [usersRes, devicesRes, alertsRes] = await Promise.all([
+      client.from("users").select("*", { count: "exact", head: true }),
+      client.from("devices").select("*", { count: "exact", head: true }),
+      // Table name matches schema: "securityAlerts"
+      client.from("securityAlerts").select("*", { count: "exact", head: true }),
+    ]);
 
     return {
-      users: userCount || 0,
-      devices: deviceCount || 0,
-      alerts: alertCount || 0,
+      users: usersRes.count ?? 0,
+      devices: devicesRes.count ?? 0,
+      alerts: alertsRes.count ?? 0,
       timestamp: new Date().toISOString(),
     };
   } catch (error) {
@@ -98,20 +94,17 @@ export async function getSupabaseStats() {
 }
 
 /**
- * Supabase real-time subscription for device changes
+ * Subscribe to real-time Postgres changes for a user's devices.
+ * The filter uses the column name as stored in the database ("userId").
  */
 export function subscribeToDeviceChanges(
   userId: number,
-  callback: (payload: any) => void
+  callback: (payload: unknown) => void
 ) {
   const client = getSupabaseClient();
-  if (!client) {
-    console.error("[Supabase] Client not initialized");
-    return null;
-  }
 
   const subscription = client
-    .channel(`devices:user_id=eq.${userId}`)
+    .channel(`devices-user-${userId}`)
     .on(
       "postgres_changes",
       {
@@ -128,13 +121,9 @@ export function subscribeToDeviceChanges(
 }
 
 /**
- * Unsubscribe from real-time updates
+ * Unsubscribe from a real-time channel.
  */
-export async function unsubscribeFromDeviceChanges(subscription: any) {
+export async function unsubscribeFromDeviceChanges(subscription: ReturnType<SupabaseClient["channel"]>) {
   const client = getSupabaseClient();
-  if (!client || !subscription) {
-    console.error("[Supabase] Client or subscription not available");
-    return;
-  }
   await client.removeChannel(subscription);
 }

@@ -157,7 +157,7 @@ export async function syncDevicesWithDatabase(
         macAddress: scannedDevice.mac,
         vendor: scannedDevice.vendor,
         deviceType: scannedDevice.deviceType,
-        isOnline: 1,
+        isOnline: true,
         riskScore,
         riskLevel: getRiskLevel(riskScore),
         lastSeen: new Date(),
@@ -169,7 +169,7 @@ export async function syncDevicesWithDatabase(
     } else {
       // Update existing device
       await updateDevice(existing.id, {
-        isOnline: 1,
+        isOnline: true,
         lastSeen: new Date(),
         ipAddress: scannedDevice.ip,
       });
@@ -179,9 +179,9 @@ export async function syncDevicesWithDatabase(
   // Check for offline devices
   const scannedMacs = scannedDevices.map((d) => d.mac);
   for (const device of existingDevices) {
-    if (!scannedMacs.includes(device.macAddress) && device.isOnline === 1) {
+    if (!scannedMacs.includes(device.macAddress) && device.isOnline === true) {
       await updateDevice(device.id, {
-        isOnline: 0,
+        isOnline: false,
         lastSeen: new Date(),
       });
 

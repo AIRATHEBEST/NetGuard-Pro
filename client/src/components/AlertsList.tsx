@@ -62,7 +62,7 @@ export default function AlertsList({ alerts }: AlertsListProps) {
           <div
             key={alert.id}
             className={`flex items-start gap-4 p-4 rounded-lg border transition-all ${
-              alert.isResolved === 1
+              alert.isResolved === true
                 ? "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 opacity-60"
                 : getSeverityColor(alert.severity)
             }`}
@@ -92,7 +92,7 @@ export default function AlertsList({ alerts }: AlertsListProps) {
                 <span className="text-xs text-slate-500">
                   {format(new Date(alert.createdAt), "MMM d, HH:mm")}
                 </span>
-                {alert.isResolved === 1 && (
+                {alert.isResolved === true && (
                   <Badge variant="secondary" className="text-xs">
                     Resolved
                   </Badge>
@@ -101,7 +101,7 @@ export default function AlertsList({ alerts }: AlertsListProps) {
             </div>
 
             {/* Action Button */}
-            {alert.isResolved === 0 && (
+            {alert.isResolved === false && (
               <Button variant="ghost" size="sm" className="flex-shrink-0">
                 Dismiss
               </Button>

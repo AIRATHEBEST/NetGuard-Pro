@@ -1,6 +1,4 @@
-import { getDb } from "../db";
-import { eq } from "drizzle-orm";
-import { users, routerSettings, devices } from "../../drizzle/schema";
+import { getSupabaseClient } from "./supabaseClient";
 import { simulateDeviceScan, syncDevicesWithDatabase, calculateRiskScore } from "./deviceScanner";
 import { analyzeDeviceThreat, createSecurityAlertFromThreat, detectAnomalies } from "./threatAnalyzer";
 import { notifyHighRiskDevice, notifyNewDevice, notifyAnomaly } from "./notificationService";
@@ -16,35 +14,34 @@ export async function startBackgroundScanning(userId: number): Promise<void> {
   // Stop any existing scan for this user
   stopBackgroundScanning(userId);
 
-  // Get user's router settings
-  const db = await getDb();
-  if (!db) return;
+  // Get user's router settings via Supabase
+  const supabase = getSupabaseClient();
+  const { data: settings, error } = await supabase
+    .from("routerSettings")
+    .select("*")
+    .eq("userId", userId)
+    .limit(1)
+    .single();
 
-  const settings = await db
-    .select()
-    .from(routerSettings)
-    .where(eq(routerSettings.userId, userId))
-    .limit(1);
-
-  if (!settings || settings.length === 0 || settings[0].isEnabled === 0) {
+  if (error || !settings || settings.isEnabled === false) {
     return;
   }
 
-  const scanInterval = (settings[0].scanInterval || 300) * 1000; // Convert to milliseconds
+  const scanInterval = (settings.scanInterval || 300) * 1000; // Convert to milliseconds
 
   // Start the scan interval
   const intervalId = setInterval(async () => {
     try {
-      await performDeviceScan(userId, settings[0].routerIp);
-    } catch (error) {
-      console.error(`Error during device scan for user ${userId}:`, error);
+      await performDeviceScan(userId, settings.routerIp);
+    } catch (err) {
+      console.error(`Error during device scan for user ${userId}:`, err);
     }
   }, scanInterval);
 
   activeScanIntervals.set(userId, intervalId);
 
   // Perform initial scan immediately
-  await performDeviceScan(userId, settings[0].routerIp);
+  await performDeviceScan(userId, settings.routerIp);
 }
 
 /**
@@ -102,20 +99,18 @@ async function performDeviceScan(userId: number, routerIp: string): Promise<void
         }
       }
 
-      // Auto-block if recommended
-      if (threatAnalysis.shouldBlock && device.isBlocked === 0) {
-        await updateDevice(device.id, { isBlocked: 1 });
+      // Auto-block if recommended and not already blocked
+      if (threatAnalysis.shouldBlock && device.isBlocked === false) {
+        await updateDevice(device.id, { isBlocked: true });
       }
     }
 
-    // Update last scan time
-    const db = await getDb();
-    if (db) {
-      await db
-        .update(routerSettings)
-        .set({ lastScanTime: new Date() })
-        .where(eq(routerSettings.userId, userId));
-    }
+    // Update last scan time via Supabase
+    const supabase = getSupabaseClient();
+    await supabase
+      .from("routerSettings")
+      .update({ lastScanTime: new Date().toISOString() })
+      .eq("userId", userId);
   } catch (error) {
     console.error(`Error performing device scan for user ${userId}:`, error);
   }
@@ -136,20 +131,24 @@ function getRiskLevel(score: number): "low" | "medium" | "high" | "critical" {
  */
 export async function initializeBackgroundJobs(): Promise<void> {
   try {
-    const db = await getDb();
-    if (!db) return;
+    const supabase = getSupabaseClient();
 
     // Get all users with enabled router settings
-    const activeUsers = await db
-      .select({ userId: routerSettings.userId })
-      .from(routerSettings)
-      .where(eq(routerSettings.isEnabled, 1));
+    const { data: activeUsers, error } = await supabase
+      .from("routerSettings")
+      .select("userId")
+      .eq("isEnabled", true);
 
-    for (const { userId } of activeUsers) {
+    if (error) {
+      console.error("[Background Jobs] Failed to fetch active users:", error.message);
+      return;
+    }
+
+    for (const { userId } of activeUsers ?? []) {
       startBackgroundScanning(userId);
     }
 
-    console.log(`[Background Jobs] Started scanning for ${activeUsers.length} users`);
+    console.log(`[Background Jobs] Started scanning for ${(activeUsers ?? []).length} users`);
   } catch (error) {
     console.error("Error initializing background jobs:", error);
   }
