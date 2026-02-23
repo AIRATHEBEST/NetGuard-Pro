@@ -33,26 +33,22 @@ export const appRouter = router({
 
   // Device management procedures
   devices: router({
-    // Get all devices for current user
     list: protectedProcedure.query(async ({ ctx }) => {
       return getDevicesByUserId(ctx.user.id);
     }),
 
-    // Get single device details
     get: protectedProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
         return getDeviceById(input.id);
       }),
 
-    // Get device history
     history: protectedProcedure
       .input(z.object({ deviceId: z.number(), limit: z.number().optional() }))
       .query(async ({ input }) => {
         return getDeviceHistoryByDeviceId(input.deviceId, input.limit);
       }),
 
-    // Update device info (name, custom settings)
     update: protectedProcedure
       .input(
         z.object({
@@ -72,7 +68,6 @@ export const appRouter = router({
         });
       }),
 
-    // Block a device
     block: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
@@ -90,7 +85,6 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    // Unblock a device
     unblock: protectedProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
@@ -107,11 +101,18 @@ export const appRouter = router({
         });
         return { success: true };
       }),
+
+    // Fingerprint a device based on MAC address
+    fingerprint: protectedProcedure
+      .input(z.object({ mac: z.string() }))
+      .query(async ({ input }) => {
+        const { identifyDeviceFromMac } = await import("./services/deviceFingerprint");
+        return identifyDeviceFromMac(input.mac);
+      }),
   }),
 
   // Router management procedures
   router: router({
-    // Get router settings
     settings: protectedProcedure.query(async ({ ctx }) => {
       const settings = await getRouterSettings(ctx.user.id);
       return settings || {
@@ -124,7 +125,6 @@ export const appRouter = router({
       };
     }),
 
-    // Save or update router settings
     saveSettings: protectedProcedure
       .input(
         z.object({
@@ -148,7 +148,6 @@ export const appRouter = router({
         }
       }),
 
-    // Scan router for connected devices
     scan: protectedProcedure
       .input(
         z.object({
@@ -169,7 +168,6 @@ export const appRouter = router({
           });
 
           if (result.success) {
-            // Store discovered devices in database
             for (const device of result.devices) {
               const existingDevice = await getDeviceByMac(device.mac);
               if (existingDevice) {
@@ -203,7 +201,6 @@ export const appRouter = router({
         }
       }),
 
-    // Block device on router
     blockDevice: protectedProcedure
       .input(
         z.object({
@@ -241,7 +238,6 @@ export const appRouter = router({
         }
       }),
 
-    // Unblock device on router
     unblockDevice: protectedProcedure
       .input(
         z.object({
@@ -282,14 +278,12 @@ export const appRouter = router({
 
   // Security alerts procedures
   alerts: router({
-    // Get all alerts for current user
     list: protectedProcedure
       .input(z.object({ limit: z.number().optional() }))
       .query(async ({ input, ctx }) => {
         return getAlertsByUserId(ctx.user.id, input.limit || 50);
       }),
 
-    // Create a new alert
     create: protectedProcedure
       .input(
         z.object({
@@ -322,16 +316,31 @@ export const appRouter = router({
         }
         return createAlert(alertData);
       }),
+
+    resolve: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const { getSupabaseClient } = await import("./services/supabaseClient");
+        const supabase = getSupabaseClient();
+        const { error } = await supabase
+          .from("securityAlerts")
+          .update({ isResolved: true, resolvedAt: new Date().toISOString() })
+          .eq("id", input.id)
+          .eq("userId", ctx.user.id);
+        if (error) throw new Error(error.message);
+        return { success: true };
+      }),
   }),
 
   // Network statistics procedures
   stats: router({
-    // Get network overview statistics
     overview: protectedProcedure.query(async ({ ctx }) => {
       const allDevices = await getDevicesByUserId(ctx.user.id);
       const onlineDevices = allDevices.filter(d => d.isOnline === true);
       const blockedDevices = allDevices.filter(d => d.isBlocked === true);
       const highRiskDevices = allDevices.filter(d => d.riskScore > 70);
+      const allAlerts = await getAlertsByUserId(ctx.user.id, 1000);
+      const unresolvedAlerts = allAlerts.filter(a => !a.isResolved);
 
       return {
         totalDevices: allDevices.length,
@@ -346,7 +355,241 @@ export const appRouter = router({
                   allDevices.length
               )
             : 0,
+        totalAlerts: allAlerts.length,
+        unresolvedAlerts: unresolvedAlerts.length,
       };
+    }),
+  }),
+
+  // Performance monitoring procedures
+  performance: router({
+    // Ping a single device
+    ping: protectedProcedure
+      .input(z.object({
+        ip: z.string(),
+        count: z.number().min(1).max(20).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { performPingTest } = await import("./services/networkDiagnostics");
+        return performPingTest(input.ip, input.count || 10);
+      }),
+
+    // Ping multiple devices (batch)
+    pingBatch: protectedProcedure
+      .input(z.object({ ips: z.array(z.string()).max(20) }))
+      .mutation(async ({ input }) => {
+        const { pingDevice } = await import("./services/performanceMonitor");
+        const results = await Promise.all(
+          input.ips.map(ip => pingDevice(ip, 3))
+        );
+        return results;
+      }),
+
+    // Get network interface stats
+    networkStats: protectedProcedure.query(async () => {
+      const { getNetworkStats } = await import("./services/performanceMonitor");
+      return getNetworkStats();
+    }),
+
+    // Get device performance metrics
+    deviceMetrics: protectedProcedure
+      .input(z.object({ ip: z.string() }))
+      .query(async ({ input }) => {
+        const { getDevicePerformanceMetrics } = await import("./services/performanceMonitor");
+        return getDevicePerformanceMetrics(input.ip);
+      }),
+  }),
+
+  // Port scanning procedures
+  portScan: router({
+    // Quick scan of common ports
+    quick: protectedProcedure
+      .input(z.object({ ip: z.string() }))
+      .mutation(async ({ input }) => {
+        const { quickScan } = await import("./services/portScanner");
+        return quickScan(input.ip);
+      }),
+
+    // Full port scan with custom range
+    full: protectedProcedure
+      .input(z.object({
+        ip: z.string(),
+        portRange: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { scanPorts } = await import("./services/portScanner");
+        return scanPorts(input.ip, input.portRange || "1-1024");
+      }),
+  }),
+
+  // Network diagnostics (DNS, Traceroute)
+  diagnostics: router({
+    // DNS lookup
+    dns: protectedProcedure
+      .input(z.object({
+        domain: z.string(),
+        recordType: z.enum(["A", "AAAA", "MX", "TXT", "NS", "CNAME"]).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { performDnsLookup } = await import("./services/networkDiagnostics");
+        return performDnsLookup(input.domain, input.recordType || "A");
+      }),
+
+    // Traceroute
+    traceroute: protectedProcedure
+      .input(z.object({
+        host: z.string(),
+        maxHops: z.number().min(1).max(30).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const { performTraceroute } = await import("./services/networkDiagnostics");
+        return performTraceroute(input.host, input.maxHops || 30);
+      }),
+
+    // Get network interfaces
+    interfaces: protectedProcedure.query(async () => {
+      const { getNetworkInterfaces } = await import("./services/networkDiagnostics");
+      return getNetworkInterfaces();
+    }),
+
+    // Reverse DNS lookup
+    reverseDns: protectedProcedure
+      .input(z.object({ ip: z.string() }))
+      .mutation(async ({ input }) => {
+        const { reverseDnsLookup } = await import("./services/networkDiagnostics");
+        const hostnames = await reverseDnsLookup(input.ip);
+        return { ip: input.ip, hostnames };
+      }),
+  }),
+
+  // Network topology procedures
+  topology: router({
+    // Get topology built from existing devices in DB
+    get: protectedProcedure.query(async ({ ctx }) => {
+      const devices = await getDevicesByUserId(ctx.user.id);
+      const routerSettings = await getRouterSettings(ctx.user.id);
+      const { buildTopologyFromDevices } = await import("./services/networkTopology");
+      return buildTopologyFromDevices(
+        devices,
+        routerSettings?.routerIp || undefined
+      );
+    }),
+
+    // Discover live topology via network scan
+    discover: protectedProcedure
+      .input(z.object({ subnet: z.string().optional() }))
+      .mutation(async ({ input }) => {
+        const { discoverNetworkTopology } = await import("./services/networkTopology");
+        return discoverNetworkTopology(input.subnet);
+      }),
+  }),
+
+  // Report generation procedures
+  reports: router({
+    // Generate CSV report
+    csv: protectedProcedure.query(async ({ ctx }) => {
+      const devices = await getDevicesByUserId(ctx.user.id);
+      const alerts = await getAlertsByUserId(ctx.user.id, 1000);
+      const onlineDevices = devices.filter(d => d.isOnline === true);
+      const blockedDevices = devices.filter(d => d.isBlocked === true);
+      const highRiskDevices = devices.filter(d => d.riskScore > 70);
+      const unresolvedAlerts = alerts.filter(a => !a.isResolved);
+
+      const { generateCsvReport } = await import("./services/reportGenerator");
+      const csv = generateCsvReport({
+        generatedAt: new Date(),
+        title: "Network Security Report",
+        summary: {
+          totalDevices: devices.length,
+          onlineDevices: onlineDevices.length,
+          offlineDevices: devices.length - onlineDevices.length,
+          blockedDevices: blockedDevices.length,
+          highRiskDevices: highRiskDevices.length,
+          averageRiskScore:
+            devices.length > 0
+              ? Math.round(devices.reduce((sum, d) => sum + d.riskScore, 0) / devices.length)
+              : 0,
+          totalAlerts: alerts.length,
+          unresolvedAlerts: unresolvedAlerts.length,
+        },
+        devices: devices.map(d => ({
+          id: d.id,
+          ipAddress: d.ipAddress,
+          macAddress: d.macAddress,
+          deviceName: d.deviceName,
+          vendor: d.vendor,
+          isOnline: !!d.isOnline,
+          isBlocked: !!d.isBlocked,
+          riskScore: d.riskScore,
+          riskLevel: d.riskLevel,
+          firstSeen: d.firstSeen,
+          lastSeen: d.lastSeen,
+        })),
+        alerts: alerts.map(a => ({
+          id: a.id,
+          alertType: a.alertType,
+          severity: a.severity,
+          title: a.title,
+          description: a.description,
+          isResolved: !!a.isResolved,
+          createdAt: a.createdAt,
+        })),
+      });
+
+      return { csv, filename: `netguard-report-${new Date().toISOString().split("T")[0]}.csv` };
+    }),
+
+    // Generate HTML report
+    html: protectedProcedure.query(async ({ ctx }) => {
+      const devices = await getDevicesByUserId(ctx.user.id);
+      const alerts = await getAlertsByUserId(ctx.user.id, 1000);
+      const onlineDevices = devices.filter(d => d.isOnline === true);
+      const blockedDevices = devices.filter(d => d.isBlocked === true);
+      const highRiskDevices = devices.filter(d => d.riskScore > 70);
+      const unresolvedAlerts = alerts.filter(a => !a.isResolved);
+
+      const { generateHtmlReport } = await import("./services/reportGenerator");
+      const html = generateHtmlReport({
+        generatedAt: new Date(),
+        title: "Network Security Report",
+        summary: {
+          totalDevices: devices.length,
+          onlineDevices: onlineDevices.length,
+          offlineDevices: devices.length - onlineDevices.length,
+          blockedDevices: blockedDevices.length,
+          highRiskDevices: highRiskDevices.length,
+          averageRiskScore:
+            devices.length > 0
+              ? Math.round(devices.reduce((sum, d) => sum + d.riskScore, 0) / devices.length)
+              : 0,
+          totalAlerts: alerts.length,
+          unresolvedAlerts: unresolvedAlerts.length,
+        },
+        devices: devices.map(d => ({
+          id: d.id,
+          ipAddress: d.ipAddress,
+          macAddress: d.macAddress,
+          deviceName: d.deviceName,
+          vendor: d.vendor,
+          isOnline: !!d.isOnline,
+          isBlocked: !!d.isBlocked,
+          riskScore: d.riskScore,
+          riskLevel: d.riskLevel,
+          firstSeen: d.firstSeen,
+          lastSeen: d.lastSeen,
+        })),
+        alerts: alerts.map(a => ({
+          id: a.id,
+          alertType: a.alertType,
+          severity: a.severity,
+          title: a.title,
+          description: a.description,
+          isResolved: !!a.isResolved,
+          createdAt: a.createdAt,
+        })),
+      });
+
+      return { html, filename: `netguard-report-${new Date().toISOString().split("T")[0]}.html` };
     }),
   }),
 });

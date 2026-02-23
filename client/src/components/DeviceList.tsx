@@ -1,9 +1,12 @@
-import { Device } from "@shared/types";
+import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Wifi, WifiOff, Shield, AlertTriangle, MoreVertical } from "lucide-react";
-import { trpc } from "@/lib/trpc";
-import { useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Wifi, WifiOff, Shield, AlertTriangle, MoreVertical, Search,
+  Monitor, Smartphone, Laptop, Router, Printer, Tv, RefreshCw
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,139 +14,238 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
+import { useState } from "react";
+import { identifyDeviceFromMac } from "@/lib/deviceUtils";
 
-interface DeviceListProps {
-  devices: Device[];
-}
+export default function DeviceList() {
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<"all" | "online" | "offline" | "blocked" | "risk">("all");
 
-export default function DeviceList({ devices }: DeviceListProps) {
-  const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
+  const { data: devices, isLoading, refetch } = trpc.devices.list.useQuery();
   const blockMutation = trpc.devices.block.useMutation();
   const unblockMutation = trpc.devices.unblock.useMutation();
   const utils = trpc.useUtils();
 
-  const handleBlock = async (device: Device) => {
+  const handleBlock = async (device: any) => {
     try {
       await blockMutation.mutateAsync({ id: device.id });
       await utils.devices.list.invalidate();
       toast.success(`Device ${device.deviceName || device.ipAddress} blocked`);
-    } catch (error) {
+    } catch {
       toast.error("Failed to block device");
     }
   };
 
-  const handleUnblock = async (device: Device) => {
+  const handleUnblock = async (device: any) => {
     try {
       await unblockMutation.mutateAsync({ id: device.id });
       await utils.devices.list.invalidate();
       toast.success(`Device ${device.deviceName || device.ipAddress} unblocked`);
-    } catch (error) {
+    } catch {
       toast.error("Failed to unblock device");
     }
   };
 
   const getRiskColor = (score: number) => {
-    if (score >= 80) return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200";
-    if (score >= 60) return "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200";
-    if (score >= 40) return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200";
-    return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
+    if (score >= 80) return "text-red-600 bg-red-50";
+    if (score >= 60) return "text-orange-600 bg-orange-50";
+    if (score >= 40) return "text-yellow-600 bg-yellow-50";
+    return "text-green-600 bg-green-50";
   };
 
-  const getRiskBadgeVariant = (score: number) => {
-    if (score >= 80) return "destructive";
-    if (score >= 60) return "default";
-    return "secondary";
+  const getDeviceIcon = (device: any) => {
+    const vendor = (device.vendor || "").toLowerCase();
+    const name = (device.deviceName || "").toLowerCase();
+    const type = (device.deviceType || "").toLowerCase();
+    if (type.includes("router") || vendor.includes("huawei") || vendor.includes("tp-link")) return <Router className="w-5 h-5 text-blue-600" />;
+    if (vendor.includes("apple") && (name.includes("iphone") || name.includes("ipad"))) return <Smartphone className="w-5 h-5 text-gray-600" />;
+    if (vendor.includes("samsung") || vendor.includes("xiaomi")) return <Smartphone className="w-5 h-5 text-gray-600" />;
+    if (name.includes("laptop") || name.includes("macbook") || vendor.includes("dell") || vendor.includes("hp")) return <Laptop className="w-5 h-5 text-gray-600" />;
+    if (name.includes("printer") || type.includes("printer")) return <Printer className="w-5 h-5 text-gray-600" />;
+    if (name.includes("tv") || name.includes("chromecast")) return <Tv className="w-5 h-5 text-gray-600" />;
+    return <Monitor className="w-5 h-5 text-gray-600" />;
   };
+
+  const filteredDevices = (devices || []).filter(device => {
+    const matchesSearch =
+      !search ||
+      (device.deviceName || "").toLowerCase().includes(search.toLowerCase()) ||
+      device.ipAddress.includes(search) ||
+      (device.macAddress || "").toLowerCase().includes(search.toLowerCase()) ||
+      (device.vendor || "").toLowerCase().includes(search.toLowerCase());
+
+    const matchesFilter =
+      filter === "all" ||
+      (filter === "online" && device.isOnline) ||
+      (filter === "offline" && !device.isOnline) ||
+      (filter === "blocked" && device.isBlocked) ||
+      (filter === "risk" && device.riskScore >= 60);
+
+    return matchesSearch && matchesFilter;
+  });
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center h-48">
+          <div className="flex items-center gap-2 text-gray-400">
+            <RefreshCw className="w-5 h-5 animate-spin" />
+            <span>Loading devices...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
-    <div className="space-y-3">
-      {devices.length === 0 ? (
-        <div className="text-center py-8 text-slate-500">
-          No devices found
-        </div>
-      ) : (
-        devices.map((device) => (
-          <div
-            key={device.id}
-            className={`flex items-center justify-between p-4 rounded-lg border transition-all ${
-              device.isBlocked
-                ? "bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800"
-                : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:shadow-md"
-            }`}
-          >
-            <div className="flex items-center gap-4 flex-1">
-              {/* Device Status Icon */}
-              <div className="flex-shrink-0">
-                {device.isOnline === true ? (
-                  <Wifi className="w-6 h-6 text-green-600" />
-                ) : (
-                  <WifiOff className="w-6 h-6 text-slate-400" />
-                )}
-              </div>
-
-              {/* Device Info */}
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-semibold text-slate-900 dark:text-white">
-                    {device.deviceName || device.ipAddress}
-                  </h3>
-                  {device.isBlocked === true && (
-                    <Badge variant="destructive" className="text-xs">
-                      BLOCKED
-                    </Badge>
-                  )}
-                </div>
-                <div className="text-sm text-slate-600 dark:text-slate-400">
-                  {device.ipAddress} • {device.macAddress}
-                </div>
-                {device.vendor && (
-                  <div className="text-xs text-slate-500 dark:text-slate-500">
-                    {device.vendor} • {device.deviceType || "Unknown"}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Risk Score and Actions */}
-            <div className="flex items-center gap-4 flex-shrink-0">
-              {/* Risk Score */}
-              <div className="text-right">
-                <div className={`text-lg font-bold ${getRiskColor(device.riskScore)}`}>
-                  {device.riskScore}
-                </div>
-                <div className="text-xs text-slate-500">Risk Score</div>
-              </div>
-
-              {/* Risk Level Badge */}
-              <Badge variant={getRiskBadgeVariant(device.riskScore)}>
-                {device.riskLevel}
-              </Badge>
-
-              {/* Actions Menu */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm">
-                    <MoreVertical className="w-4 h-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {device.isBlocked === true ? (
-                    <DropdownMenuItem onClick={() => handleUnblock(device)}>
-                      Unblock Device
-                    </DropdownMenuItem>
-                  ) : (
-                    <DropdownMenuItem onClick={() => handleBlock(device)}>
-                      Block Device
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem>View Details</DropdownMenuItem>
-                  <DropdownMenuItem>View History</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+    <Card className="border-0 shadow-sm">
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Monitor className="w-5 h-5 text-blue-600" /> Connected Devices
+            </CardTitle>
+            <CardDescription>
+              {devices?.length || 0} devices discovered · {devices?.filter(d => d.isOnline).length || 0} online
+            </CardDescription>
           </div>
-        ))
-      )}
-    </div>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            <RefreshCw className="w-4 h-4 mr-1" /> Refresh
+          </Button>
+        </div>
+
+        {/* Search and Filter */}
+        <div className="flex gap-2 mt-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Input
+              placeholder="Search by name, IP, MAC, or vendor..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <div className="flex gap-1">
+            {(["all", "online", "offline", "blocked", "risk"] as const).map(f => (
+              <Button
+                key={f}
+                variant={filter === f ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFilter(f)}
+                className="capitalize text-xs"
+              >
+                {f === "risk" ? "High Risk" : f}
+              </Button>
+            ))}
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent>
+        {filteredDevices.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+            <Wifi className="w-12 h-12 mb-4 opacity-30" />
+            <p className="text-base font-medium">
+              {devices?.length === 0
+                ? "No devices found — configure your router settings to start scanning"
+                : "No devices match your search"}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {filteredDevices.map(device => (
+              <div
+                key={device.id}
+                className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${
+                  device.isBlocked
+                    ? "bg-red-50 border-red-200"
+                    : device.riskScore >= 80
+                    ? "bg-orange-50 border-orange-200"
+                    : "bg-white border-slate-200 hover:shadow-sm"
+                }`}
+              >
+                {/* Status indicator */}
+                <div className="relative flex-shrink-0">
+                  {getDeviceIcon(device)}
+                  <div className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-white ${
+                    device.isBlocked ? "bg-red-500" :
+                    device.isOnline ? "bg-green-500" : "bg-gray-300"
+                  }`} />
+                </div>
+
+                {/* Device info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-semibold text-slate-900 truncate">
+                      {device.deviceName || device.ipAddress}
+                    </h3>
+                    {device.isBlocked && (
+                      <Badge variant="destructive" className="text-xs">BLOCKED</Badge>
+                    )}
+                    {device.riskScore >= 80 && !device.isBlocked && (
+                      <Badge className="bg-orange-100 text-orange-800 text-xs">HIGH RISK</Badge>
+                    )}
+                  </div>
+                  <div className="text-sm text-slate-500 font-mono mt-0.5">
+                    {device.ipAddress}
+                    {device.macAddress && ` · ${device.macAddress}`}
+                  </div>
+                  {device.vendor && (
+                    <div className="text-xs text-slate-400 mt-0.5">
+                      {device.vendor}
+                      {device.deviceType && ` · ${device.deviceType}`}
+                    </div>
+                  )}
+                  {device.lastSeen && (
+                    <div className="text-xs text-slate-400 mt-0.5">
+                      Last seen: {new Date(device.lastSeen).toLocaleString()}
+                    </div>
+                  )}
+                </div>
+
+                {/* Risk score */}
+                <div className="flex-shrink-0 text-right">
+                  <div className={`text-lg font-bold px-2 py-0.5 rounded ${getRiskColor(device.riskScore)}`}>
+                    {device.riskScore}
+                  </div>
+                  <div className="text-xs text-slate-400 mt-0.5">Risk Score</div>
+                </div>
+
+                {/* Risk level */}
+                <Badge
+                  variant={device.riskScore >= 80 ? "destructive" : device.riskScore >= 60 ? "default" : "secondary"}
+                  className="flex-shrink-0 capitalize"
+                >
+                  {device.riskLevel}
+                </Badge>
+
+                {/* Actions */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" className="flex-shrink-0">
+                      <MoreVertical className="w-4 h-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {device.isBlocked ? (
+                      <DropdownMenuItem onClick={() => handleUnblock(device)}>
+                        Unblock Device
+                      </DropdownMenuItem>
+                    ) : (
+                      <DropdownMenuItem onClick={() => handleBlock(device)} className="text-red-600">
+                        Block Device
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem>View History</DropdownMenuItem>
+                    <DropdownMenuItem>Run Port Scan</DropdownMenuItem>
+                    <DropdownMenuItem>Ping Device</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
