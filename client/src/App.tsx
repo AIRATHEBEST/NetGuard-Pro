@@ -6,7 +6,9 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
+import CredentialsSetup from "./components/CredentialsSetup";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useState, useEffect } from "react";
 
 function Router() {
   const { isAuthenticated, loading } = useAuth();
@@ -33,6 +35,44 @@ function Router() {
   );
 }
 
+function CredentialsCheck() {
+  const [setupComplete, setSetupComplete] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Check if credentials are already set up
+    const credentials = localStorage.getItem("netguardpro_credentials");
+    if (credentials) {
+      setSetupComplete(true);
+    }
+    setLoading(false);
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-slate-300 border-t-blue-600 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-slate-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!setupComplete) {
+    return (
+      <CredentialsSetup
+        onComplete={() => {
+          setSetupComplete(true);
+          window.location.reload();
+        }}
+      />
+    );
+  }
+
+  return <Router />;
+}
+
 // NOTE: About Theme
 // - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
 //   to keep consistent foreground/background color across components
@@ -47,7 +87,7 @@ function App() {
       >
         <TooltipProvider>
           <Toaster />
-          <Router />
+          <CredentialsCheck />
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
