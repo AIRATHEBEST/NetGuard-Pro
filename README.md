@@ -1,6 +1,8 @@
-# NetGuardPro - Network Security Monitoring
+# NetGuard Pro — Merged SaaS Edition
 
-Advanced network security monitoring application with real-time device scanning, threat detection, and intelligent alerts.
+Advanced network security monitoring platform with **multi-tenant SaaS capabilities**. This is the merged version combining the original GitHub project with the **v2 SaaS-Ready** features (workspaces, RBAC, WebSocket agents, device blocking, and background scheduler).
+
+> **Supabase Project**: `https://iarufylvvybhtqosohgb.supabase.co` (EU West, Active)
 
 ## 🚀 Quick Start (3 Steps)
 
@@ -19,14 +21,29 @@ npm run dev
 
 That's it! 🎉 The app will ask for your credentials on first launch.
 
-## 📋 What You'll Need
+## 📋 Supabase Setup (Already Configured)
 
-When the app starts, have these ready:
+Your Supabase project is already set up with all 15 tables. The `.env` file is pre-configured. Just run `npm install && npm run dev`.
 
-1. **Supabase URL** - From your Supabase dashboard
-2. **Supabase Anon Key** - From your Supabase dashboard  
-3. **Database URL** - Your PostgreSQL connection string
-4. **JWT Secret** - Any random string (min 32 characters)
+**If you need to reconfigure**, copy `.env.example` to `.env`:
+
+```bash
+cp .env.example .env
+# Then edit .env with your Supabase credentials
+```
+
+**Database Tables (all created):**
+
+| Table | Purpose |
+|---|---|
+| `users` | User accounts |
+| `devices` | Network devices |
+| `securityAlerts` | Security alerts |
+| `routerSettings` | Router config |
+| `workspaces` | Multi-tenant workspaces (v2) |
+| `workspace_members` | RBAC membership (v2) |
+| `networks` | Networks per workspace (v2) |
+| + 8 more | Performance, topology, diagnostics |
 
 ## 🔧 Available Commands
 
@@ -51,6 +68,11 @@ npm run db:push   # Run database migrations
 - ✅ Historical data tracking
 - ✅ Cloud database (Supabase)
 - ✅ Real-time subscriptions
+- ✅ **Multi-tenant workspaces** (v2 SaaS)
+- ✅ **RBAC** — OWNER / ADMIN / TECH / VIEWER (v2)
+- ✅ **WebSocket agent server** for network agents (v2)
+- ✅ **Background scheduler** — auto-scan every 5 min (v2)
+- ✅ **MAC-level device blocking** via iptables (v2)
 
 ## 📁 Project Structure
 
