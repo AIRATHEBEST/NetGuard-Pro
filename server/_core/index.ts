@@ -7,6 +7,8 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { startAgentServer } from "../services/agentServer";
+import { startScheduler } from "../services/schedulerService";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -58,8 +60,23 @@ async function startServer() {
   }
 
   server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
+    console.log(`[NetGuard Pro] Server running on http://localhost:${port}/`);
+    console.log(`[NetGuard Pro] Supabase: ${process.env.SUPABASE_URL || "not configured"}`);
   });
+
+  // Start WebSocket agent server (v2 SaaS feature)
+  try {
+    startAgentServer();
+  } catch (err) {
+    console.warn("[AgentServer] Could not start:", err);
+  }
+
+  // Start background scheduler (v2 SaaS feature)
+  try {
+    startScheduler();
+  } catch (err) {
+    console.warn("[Scheduler] Could not start:", err);
+  }
 }
 
 startServer().catch(console.error);

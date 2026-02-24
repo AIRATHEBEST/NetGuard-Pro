@@ -81,7 +81,9 @@
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^1.1.2",
     "wouter": "^3.3.5",
-    "zod": "^4.1.12"
+    "zod": "^4.1.12",
+    "ws": "^8.16.0",
+    "node-cron": "^3.0.3"
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.15",
@@ -107,6 +109,7 @@
     "typescript": "5.9.3",
     "vite": "^7.1.7",
     "vite-plugin-manus-runtime": "^0.0.57",
-    "vitest": "^2.1.4"
+    "vitest": "^2.1.4",
+    "@types/ws": "^8.5.10"
   }
 }

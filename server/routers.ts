@@ -1,3 +1,8 @@
+// v2 SaaS imports
+import { createWorkspace, getWorkspaces, getWorkspaceById, addWorkspaceMember, getWorkspaceMembers } from "./services/workspace/workspaceService";
+import { hasPermission, getRolePermissions, isValidRole, Roles } from "./services/rbac";
+import { blockDevice as blockDeviceByMac, unblockDevice as unblockDeviceByMac } from "./services/blockingService";
+import { getConnectedAgentCount } from "./services/agentServer";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
@@ -20,6 +25,56 @@ import {
 
 export const appRouter = router({
   system: systemRouter,
+
+  // ── Workspace Management (v2 SaaS) ────────────────────────────────────────
+  workspaces: router({
+    list: protectedProcedure.query(async () => getWorkspaces()),
+    get: protectedProcedure
+      .input(z.object({ id: z.string() }))
+      .query(async ({ input }) => getWorkspaceById(input.id)),
+    create: protectedProcedure
+      .input(z.object({ name: z.string().min(1) }))
+      .mutation(async ({ input, ctx }) => createWorkspace(input.name, String(ctx.user.id))),
+    addMember: protectedProcedure
+      .input(z.object({ workspaceId: z.string(), userId: z.string(), role: z.string() }))
+      .mutation(async ({ input }) => {
+        if (!isValidRole(input.role)) throw new Error("Invalid role");
+        return addWorkspaceMember(input.workspaceId, input.userId, input.role);
+      }),
+    members: protectedProcedure
+      .input(z.object({ workspaceId: z.string() }))
+      .query(async ({ input }) => getWorkspaceMembers(input.workspaceId)),
+  }),
+
+  // ── RBAC (v2 SaaS) ────────────────────────────────────────────────────────
+  rbac: router({
+    roles: publicProcedure.query(() => Object.values(Roles)),
+    checkPermission: protectedProcedure
+      .input(z.object({ role: z.string(), action: z.string() }))
+      .query(({ input }) => ({ allowed: hasPermission(input.role, input.action) })),
+    permissions: protectedProcedure
+      .input(z.object({ role: z.string() }))
+      .query(({ input }) => getRolePermissions(input.role)),
+  }),
+
+  // ── Agent Status (v2 SaaS) ────────────────────────────────────────────────
+  agent: router({
+    status: protectedProcedure.query(() => ({
+      connectedAgents: getConnectedAgentCount(),
+      timestamp: new Date().toISOString(),
+    })),
+  }),
+
+  // ── Enhanced MAC-level Blocking (v2 SaaS) ─────────────────────────────────
+  blocking: router({
+    blockByMac: protectedProcedure
+      .input(z.object({ mac: z.string() }))
+      .mutation(async ({ input, ctx }) => blockDeviceByMac(input.mac, ctx.user.id)),
+    unblockByMac: protectedProcedure
+      .input(z.object({ mac: z.string() }))
+      .mutation(async ({ input, ctx }) => unblockDeviceByMac(input.mac, ctx.user.id)),
+  }),
+
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
