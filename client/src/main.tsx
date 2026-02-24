@@ -7,6 +7,7 @@ import superjson from "superjson";
 import App from "./App";
 import { getLoginUrl } from "./const";
 import "./index.css";
+import { supabase } from "@/lib/supabase";
 
 const queryClient = new QueryClient();
 
@@ -18,7 +19,10 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
 
   if (!isUnauthorized) return;
 
-  window.location.href = getLoginUrl();
+  // Only redirect if not already on home page to avoid redirect loops
+  if (window.location.pathname !== "/") {
+    window.location.href = getLoginUrl();
+  }
 };
 
 queryClient.getQueryCache().subscribe(event => {
@@ -42,6 +46,16 @@ const trpcClient = trpc.createClient({
     httpBatchLink({
       url: "/api/trpc",
       transformer: superjson,
+      async headers() {
+        // Send Supabase access token in Authorization header for server-side auth
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          return {
+            Authorization: `Bearer ${session.access_token}`,
+          };
+        }
+        return {};
+      },
       fetch(input, init) {
         return globalThis.fetch(input, {
           ...(init ?? {}),

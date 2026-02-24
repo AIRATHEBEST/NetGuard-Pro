@@ -1,17 +1,8 @@
 export { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 
-// Generate login URL at runtime so redirect URI reflects the current origin.
+// For Supabase-based auth, we redirect to home page where the login modal is shown.
+// This prevents redirects to external OAuth portals.
 export const getLoginUrl = () => {
-  const oauthPortalUrl = import.meta.env.VITE_OAUTH_PORTAL_URL || "https://auth.example.com";
-  const appId = import.meta.env.VITE_APP_ID || "netguard-pro-app";
-  const redirectUri = `${window.location.origin}/api/oauth/callback`;
-  const state = btoa(redirectUri);
-
-  const url = new URL(`${oauthPortalUrl}/app-auth`);
-  url.searchParams.set("appId", appId);
-  url.searchParams.set("redirectUri", redirectUri);
-  url.searchParams.set("state", state);
-  url.searchParams.set("type", "signIn");
-
-  return url.toString();
+  // Return home page URL - the login modal will handle Supabase authentication
+  return `${window.location.origin}/`;
 };

@@ -32,7 +32,10 @@ let supabaseClient: SupabaseClient | null = null;
 
 export function getSupabaseClient(): SupabaseClient {
   if (!supabaseClient) {
-    supabaseClient = initializeSupabaseClient();
+    // Use service role key on the server side to bypass RLS for admin operations.
+    // Token verification via supabase.auth.getUser() still validates the user's JWT.
+    const hasServiceRole = !!(ENV.supabaseServiceRoleKey || process.env.SUPABASE_SERVICE_ROLE_KEY);
+    supabaseClient = initializeSupabaseClient(hasServiceRole);
   }
   return supabaseClient;
 }

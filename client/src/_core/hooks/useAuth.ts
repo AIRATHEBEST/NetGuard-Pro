@@ -44,6 +44,16 @@ export function useAuth(options?: UseAuthOptions) {
     if (error) throw error;
   }, []);
 
+  const loginWithEmail = useCallback(async (email: string, password: string) => {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) throw error;
+    await utils.auth.me.invalidate();
+    return data;
+  }, [utils]);
+
   const logout = useCallback(async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
@@ -75,6 +85,7 @@ export function useAuth(options?: UseAuthOptions) {
     ...state,
     refresh: () => meQuery.refetch(),
     loginWithGoogle,
+    loginWithEmail,
     logout,
   };
 }
